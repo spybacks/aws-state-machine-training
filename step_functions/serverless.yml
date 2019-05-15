@@ -1,0 +1,71 @@
+# This file is the main config file for all Lambda functionss of wqt integration project
+
+service: wb-${opt:stage}-training-machine
+
+provider:
+  name: aws
+  region: eu-west-1
+  cfLogs: true
+  vpc:
+    securityGroupIds:
+      - ${file(./${opt:stage}_env.yml):securityGroupIds}
+    subnetIds:
+      - ${file(./${opt:stage}_env.yml):subnetId1}
+      - ${file(./${opt:stage}_env.yml):subnetId2}
+
+
+package:
+  artifact: lambda_code.zip
+
+functions:
+  init-training-step:
+    runtime: python2.7
+    memorySize: 128
+    handler: init_step_function.lambda_handler
+    role: ${file(./${opt:stage}_env.yml):role}
+    environment:
+      ACTIVITY: arn:aws:states:#{AWS::Region}:#{AWS::AccountId}:activity:${opt:stage}-validationActivity
+    timeout: 120
+    tags:
+      lambdaFunctionName: init_step_function
+  complete-training-step:
+    runtime: python2.7
+    memorySize: 128
+    handler: complete_step.lambda_handler
+    role: ${file(./${opt:stage}_env.yml):role}
+    environment:
+    timeout: 120
+    tags:
+      lambdaFunctionName: complete_step
+
+stepFunctions:
+  stateMachines:
+    testStasMachine:
+      name: ${opt:stage}-testTrainingMachine
+      definition:
+        Comment: "A Training POC"
+        StartAt: initStep
+        States:
+          initStep:
+            Type: Task
+            Resource: arn:aws:lambda:#{AWS::Region}:#{AWS::AccountId}:function:${self:service}-${opt:stage}-init-training-step
+            Next: ValidationWaiting
+          ValidationWaiting:
+            Type: Task
+            Resource: arn:aws:states:#{AWS::Region}:#{AWS::AccountId}:activity:validationPCRActivity
+            TimeoutSeconds: 3600
+            Next: Complete
+          Complete:
+            Type: Task
+            Resource: arn:aws:lambda:#{AWS::Region}:#{AWS::AccountId}:function:${self:service}-${opt:stage}-complete-training-step
+            TimeoutSeconds: 3600
+            End: true
+  activities:
+    - ${opt:stage}-validationtrainingActivity
+
+
+
+plugins:
+  - serverless-step-functions
+  - serverless-pseudo-parameters
+

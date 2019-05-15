@@ -1,0 +1,4 @@
+role: arn:aws:iam::*:role/lambda_basic_execution
+securityGroupIds: sg-******
+subnetId1: subnet-*******
+subnetId2: subnet-*******
